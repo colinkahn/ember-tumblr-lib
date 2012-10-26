@@ -1,7 +1,8 @@
 // http://www.tumblr.com/docs/en/api/v2#auth   
 Tumblr = Em.Application.create({
-    initialize:function() {
-        this._super()
+    autoinit: false,
+    initialize:function(router) {
+        this._super(router)
         this.registerHandlebarsHelpers()
     },
     post_types:['photo', 'video', 'text', 'quote', 'link', 'chat', 'audio', 'answer'],
@@ -43,7 +44,7 @@ Tumblr.Router = Ember.Router.extend({
             deserialize:function(router, params) {
                 var deferred = jQuery.Deferred(),
                     resolve = function(json) {
-                        router.get('tumbleLogController').set('content', Tumblr.TumbleLog.create(json.response.blog))
+                        router.get('tumbleLogController').set('content', json.response.blog)
                         router.get('postsController').set('content', jQuery.map(json.response.posts, function(obj){
                             return Tumblr.Post.create(obj)
                         }))
@@ -67,42 +68,19 @@ Tumblr.Router = Ember.Router.extend({
 })
 
 Tumblr.ApplicationController = Em.Controller.extend({})
-
 Tumblr.ApplicationView = Em.View.extend({
     template: Em.Handlebars.compile('{{outlet}}')
 })
 
-Tumblr.LoadingController = Em.Controller.extend({
-    percent:0
-})
-
-Tumblr.LoadingView = Em.View.extend({
-    classNames:['progress', 'progress-striped', 'active'],
-    template:Em.Handlebars.compile('{{view view.bar}}'),
-    bar:Em.View.extend({
-        classNames:['bar'],
-        percentBinding:'parentView.controller.percent',
-        _percent_observer:function(){
-            this.$().css('width', this.get('percent')+'%')
-        }.observes('percent'),
-        didInsertElement:function() {
-            var view = this
-            this.$().bind("ajaxProgress", function(jqEvent, progressEvent, jqXHR) {
-                if (progressEvent.lengthComputable) {
-                    view.set('percent', Math.round(progressEvent.loaded / progressEvent.total * 100))
-                }
-            })   
-        }
-    })
-})
-
-/* Core Views and Controllers */
-Tumblr.TumbleLog = Em.Object.extend({})
 Tumblr.TumbleLogController = Em.Controller.extend({})
 Tumblr.TumbleLogView = Em.View.extend({
     contentBinding:'controller.content',
     templateName:'tumblr-app-tmpl'
 })
+
+/* Core Views and Controllers */
+
+
 
 Tumblr.Post = Em.Object.extend({
     reblogUrl:function() {
@@ -162,4 +140,29 @@ Tumblr.VideoView = Em.View.extend({
             this.set('video-embed-'+size.width, Em.Object.create(size))
         }, this)
     }
+})
+
+/* Bootstrap */
+Tumblr.LoadingController = Em.Controller.extend({
+    percent:0
+})
+
+Tumblr.LoadingView = Em.View.extend({
+    classNames:['progress', 'progress-striped', 'active'],
+    template:Em.Handlebars.compile('{{view view.bar}}'),
+    bar:Em.View.extend({
+        classNames:['bar'],
+        percentBinding:'parentView.controller.percent',
+        _percent_observer:function(){
+            this.$().css('width', this.get('percent')+'%')
+        }.observes('percent'),
+        didInsertElement:function() {
+            var view = this
+            this.$().bind("ajaxProgress", function(jqEvent, progressEvent, jqXHR) {
+                if (progressEvent.lengthComputable) {
+                    view.set('percent', Math.round(progressEvent.loaded / progressEvent.total * 100))
+                }
+            })   
+        }
+    })
 })
