@@ -5,16 +5,16 @@
 
 		<script type="text/x-handlebars" data-template-name="tumblr-app-tmpl">
 		    <h1>
-		        <a {{action showHome href=true}}>{{view.content.title}}</a>
+		        <a {{action showHome href=true}}>{{controller.content.title}}</a>
 		    </h1> 
-		    {{&view.content.description}} 
+		    {{&controller.content.description}} 
 		    {{outlet}}
 		</script>
 
 		<script type="text/x-handlebars" data-template-name="tumblr-post-tmpl">
 		    {{#text}}
-		        <h3>{{&view.post.title}}</h3>
-		        {{&view.post.body}}
+		        <h3>{{&view.content.title}}</h3>
+		        {{&view.content.body}}
 		    {{/text}}
 		    
 		    {{#photo}}
@@ -113,6 +113,9 @@
 	<script type="text/javascript" src="lib/ember-latest.min.js"></script>
 	<script type="text/javascript" src="lib/jquery.ajaxprogress.js"></script>
 	<script type="text/javascript" src="example.js"></script>
+	<script type="text/javascript" src="../ember-tumblr-lib.js"></script>
+	<script type="text/javascript" src="../ember-bootstrap-lib.js"></script>
+
 	<script type="text/javascript">
 		/*  Besides templates, 
 			we also need a tumblrJSON
@@ -134,6 +137,27 @@
 				resolve(TUMBLR_EXAMPLE_JSON)				
 			}, 1000)
 		}
+
+		router = Tumblr.Router.create()
+		App = Tumblr.Application.create()
+
+		router.set('api', Tumblr.Api.create({
+			api_key:'3Uj5hvL773MVNlhFJC5gyVftNh4Qxci3hqoPkU3nAzp9bFJ8UB',
+			base_hostname:'w0w13z0w13.tumblr.com',
+			postClass:Tumblr.Post
+		}))
+
+		App.ApplicationView = Tumblr.ApplicationView.extend()
+		App.ApplicationController = Tumblr.ApplicationController.extend()
+		App.TumbleLogView = Tumblr.TumbleLogView.extend()
+		App.TumbleLogController = Tumblr.TumbleLogController.extend()
+		App.PostDetailView = Tumblr.PostDetailView.extend()
+		App.PostDetailController = Tumblr.PostDetailController.extend() 
+		App.PostsView = Tumblr.PostsView.extend()
+		App.PostsController = Tumblr.PostsController.extend()
+		App.LoadingController = Bootstrap.LoadingController.extend()
+		App.LoadingView = Bootstrap.LoadingView.extend()
+
+		App.initialize(router)
 	</script>
-	<script type="text/javascript" src="../ember-tumblr-lib.js"></script>
 </html>

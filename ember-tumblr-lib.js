@@ -1,5 +1,219 @@
-// http://www.tumblr.com/docs/en/api/v2#auth   
-Tumblr = Em.Application.create({
+// http://stackoverflow.com/questions/1568210/integrating-tumblr-blog-with-website/3393151#3393151
+
+Tumblr = {}
+
+Tumblr.Api = Em.Object.extend({
+    api_key:null,
+    base_hostname:null,
+    blogClass:Em.Object,
+    postClass:Em.Object,
+    _WrapCallback:function(callback, deferred) {
+        var api = this,
+            wrapped = function(json) { 
+                var data = api._MakeEmberObjects(json),
+                    toConnectOutlets = callback(data)
+                deferred.resolve(toConnectOutlets) 
+            }
+        return wrapped
+    },
+    _MakeEmberObjects:function(json) {
+        var blog = json.response.blog,
+            posts = json.response.posts,
+            blogClass = this.get('blogClass'),
+            postClass = this.get('postClass'),
+            data = {}
+        data.blog = blog && blogClass.create(blog)
+        data.posts = posts && jQuery.map(posts, function(post){
+                                    return postClass.create(post)
+                                })
+        return data
+    },
+    _FetchUrl:function(url, callback, params) {        
+        var ajaxParams = {
+            dataType:'jsonp',
+            url:url,
+            data:params, 
+            success:callback       
+        }
+        jQuery.ajax(ajaxParams)
+    },
+    _NewDeferred:function() {
+        return jQuery.Deferred()    
+    },
+    _BuildURL:function(at) {
+        var base_hostname = this.get('base_hostname'),
+            api_key = this.get('api_key'),
+            url = "http://api.tumblr.com/v2/blog/%@/%@?api_key=%@".fmt(base_hostname, at, api_key)
+        return url
+    },
+    GetBlogInfo:function(callback) {
+        var url = this._BuildURL('info')
+            deferred = this._NewDeferred(),
+            wrapped = this._WrapCallback(callback,deferred)
+        this._FetchUrl(url,wrapped,{})
+        return deferred.promise()
+    },
+    GetPosts:function(params, callback) {
+        var url = this._BuildURL('posts')
+            deferred = this._NewDeferred(),
+            wrapped = this._WrapCallback(callback,deferred)
+        this._FetchUrl(url,wrapped,params)
+        return deferred.promise()        
+    }
+})
+
+/*
+api = Tumblr.Api.create({api_key:'3Uj5hvL773MVNlhFJC5gyVftNh4Qxci3hqoPkU3nAzp9bFJ8UB',base_hostname:'w0w13z0w13.tumblr.com'})
+api.GetBlogInfo(function(data){ console.log('blog', data) })
+api.GetPosts({}, function(data){ console.log('posts', data.posts) })
+api.GetPosts({id:31713357832}, function(data){ console.log('post by id', data.posts) })
+*/
+
+// https://github.com/emberjs/ember.js/issues/1378
+
+Tumblr.Router = Ember.Router.extend({
+    enableLogging:true,
+    root: Ember.Route.extend({
+        index: Em.Route.extend({
+            route:'/',
+            redirectsTo:'blog.index'
+        }),
+        blog: Em.Route.extend({
+            route:'/blog',
+
+            /* Actions */
+            showHome:Ember.Route.transitionTo('index'),
+            showPost:Ember.Route.transitionTo('postDetail'),
+
+            connectOutlets:function(router) {
+                router.api.GetBlogInfo(function(data){
+                    router.get('tumbleLogController').set('content', data.blog)
+                })
+                router.get('applicationController').connectOutlet('tumbleLog')
+            },
+            index: Em.Route.extend({
+                route: '/',
+                connectOutlets:function(router) {
+                    router.api.GetPosts({}, function(data){
+                        router.get('postsController').set('content', data.posts)        
+                    })
+                    router.get('tumbleLogController').connectOutlet('posts')
+                }
+            }),
+            page: Em.Route.extend({
+                route:'/page/:page',
+                connectOutlets:function(router,params) {
+                    var page = parseInt(params.page),
+                        offset = page-1>-1 ? (page-1)*20 : 0
+                    router.api.GetPosts({offset:offset}, function(data){
+                        router.get('postsController').set('content', data.posts)        
+                    })
+                    router.get('tumbleLogController').connectOutlet('posts')
+                }
+            }),
+            postDetail:Em.Route.extend({
+                route:'/post/:id',
+                deserialize:function(router,params) {
+                    var id = params.id
+                    return router.api.GetPosts({id:id},function(data){
+                        router.get('tumbleLogController').set('content', data.blog)
+                        return data.posts[0]
+                    })               
+                },
+                connectOutlets:function(router,post) {
+                    router.get('applicationController').connectOutlet('tumbleLog')
+                    router.get('tumbleLogController').connectOutlet('postDetail', post)
+                }
+            })  
+        })
+    })
+})
+
+Tumblr.ApplicationView = Em.View.extend({
+    template: Em.Handlebars.compile('{{outlet}}')
+})
+Tumblr.ApplicationController = Em.Controller.extend()
+
+Tumblr.TumbleLogView = Em.View.extend({
+    templateName:'tumblr-app-tmpl'
+})
+Tumblr.TumbleLogController = Em.Controller.extend()
+
+/* Core Views and Controllers */
+Tumblr.Post = Em.Object.extend({
+    reblogUrl:function() {
+        var id = this.get('id'),
+            reblog_key = this.get('reblog_key')
+        return "http://www.tumblr.com/reblog/%@/%@".fmt(id, reblog_key)
+    }.property()
+})
+
+Tumblr.PostView = Em.View.extend({
+    classNames:['post'],
+    templateName:'tumblr-post-tmpl',
+    postBinding:'content'
+})
+
+Tumblr.PostDetailView = Tumblr.PostView.extend({
+    contentBinding:'controller.content',
+    classNames:['detail'],
+    is_detail:true
+})
+Tumblr.PostDetailController = Em.Controller.extend()
+
+Tumblr.PostsView = Em.CollectionView.extend({
+    tagName:'ul',
+    classNames:['thumbnails', 'row'],
+    contentBinding:'controller.content',
+    itemViewClass: Tumblr.PostView.extend({
+        tagName:'li',
+        classNames:['preview', 'span2']
+    })
+})
+Tumblr.PostsController = Em.ArrayController.extend()
+
+
+Tumblr.assignController = function(view, viewController) {
+    // https://github.com/emberjs/ember.js/issues/1048
+    var controller = viewController.create({
+          content: view.get('content'),
+          view: view
+        });
+    view.set('controller', controller);
+    // TODO: Add willDestory method to view
+}
+
+
+/* Helper Views */
+Tumblr.PhotoView = Em.View.extend({
+    classNames:['photo'],
+    init:function() {
+        this._super()
+        /* Convert our sizes into easily accessible properties */
+        /* TODO: Make these computed properties with fallbacks to a smaller size */
+        this.get('content.alt_sizes').forEach(function(size) {
+            this.set('photo-url-'+size.width, Em.Object.create(size))
+        }, this)
+    }
+})   
+Tumblr.PhotoSetView = Em.CollectionView.extend({
+    tagName:'div',
+    classNames:['photoset'],
+    itemViewClass:Tumblr.PhotoView
+})
+
+Tumblr.VideoView = Em.View.extend({
+    classNames:['video'],
+    init:function() {
+        this._super()
+        /* Convert our sizes into easily accessible properties */
+        this.get('content').forEach(function(size) {
+            this.set('video-embed-'+size.width, Em.Object.create(size))
+        }, this)
+    }
+})
+
+Tumblr.Application = Em.Application.extend({
     autoinit: false,
     initialize:function(router) {
         this._super(router)
@@ -30,139 +244,3 @@ Tumblr = Em.Application.create({
     }
 })
 
-Tumblr.Router = Ember.Router.extend({
-    root: Ember.Route.extend({
-        showHome:Ember.Route.transitionTo('index'),
-        showPost:Ember.Route.transitionTo('postDetail'),
-        loading: Em.Route.extend({
-            connectOutlets: function(router, context){
-                router.get('applicationController').connectOutlet('loading', context)                
-            }
-        }),
-        index: Em.Route.extend({
-            route: '/',
-            deserialize:function(router, params) {
-                var deferred = jQuery.Deferred(),
-                    resolve = function(json) {
-                        router.get('tumbleLogController').set('content', json.response.blog)
-                        router.get('postsController').set('content', jQuery.map(json.response.posts, function(obj){
-                            return Tumblr.Post.create(obj)
-                        }))
-                        deferred.resolve() 
-                    }
-                tumblrJSON(resolve)                
-                return deferred.promise()
-            },
-            connectOutlets:function(router) {
-                router.get('applicationController').connectOutlet('tumbleLog')
-                router.get('tumbleLogController').connectOutlet('posts')
-            }
-        }),
-        postDetail:Em.Route.extend({
-            route:'/post/:id',
-            connectOutlets:function(router,post) {
-                router.get('tumbleLogController').connectOutlet('postDetail', post)
-            }
-        })
-    })
-})
-
-Tumblr.ApplicationController = Em.Controller.extend({})
-Tumblr.ApplicationView = Em.View.extend({
-    template: Em.Handlebars.compile('{{outlet}}')
-})
-
-Tumblr.TumbleLogController = Em.Controller.extend({})
-Tumblr.TumbleLogView = Em.View.extend({
-    contentBinding:'controller.content',
-    templateName:'tumblr-app-tmpl'
-})
-
-/* Core Views and Controllers */
-
-
-
-Tumblr.Post = Em.Object.extend({
-    reblogUrl:function() {
-        var id = this.get('id'),
-            reblog_key = this.get('reblog_key')
-        return "http://www.tumblr.com/reblog/%@/%@".fmt(id, reblog_key)
-    }.property()        
-})
-
-Tumblr.PostsController = Em.ArrayController.extend({})
-Tumblr.PostDetailController = Em.Controller.extend({})
-
-Tumblr.PostView = Em.View.extend({
-    classNames:['post'],
-    templateName:'tumblr-post-tmpl',
-    postBinding:'content'
-})
-Tumblr.PostDetailView = Tumblr.PostView.extend({
-    contentBinding:'controller.content',
-    classNames:['detail'],
-    is_detail:true
-})
-Tumblr.PostsView = Em.CollectionView.extend({
-    tagName:'ul',
-    classNames:['thumbnails', 'row'],
-    contentBinding:'controller.content',
-    itemViewClass: Tumblr.PostView.extend({
-        tagName:'li',
-        classNames:['preview', 'span2']
-    })
-})
-
-/* Helper Views */
-Tumblr.PhotoView = Em.View.extend({
-    classNames:['photo'],
-    init:function() {
-        this._super()
-        /* Convert our sizes into easily accessible properties */
-        this.get('content.alt_sizes').forEach(function(size) {
-            this.set('photo-url-'+size.width, Em.Object.create(size))
-        }, this)
-    }
-})   
-
-Tumblr.PhotoSetView = Em.CollectionView.extend({
-    tagName:'div',
-    classNames:['photoset'],
-    itemViewClass:Tumblr.PhotoView
-})
-
-Tumblr.VideoView = Em.View.extend({
-    classNames:['video'],
-    init:function() {
-        this._super()
-        /* Convert our sizes into easily accessible properties */
-        this.get('content').forEach(function(size) {
-            this.set('video-embed-'+size.width, Em.Object.create(size))
-        }, this)
-    }
-})
-
-/* Bootstrap */
-Tumblr.LoadingController = Em.Controller.extend({
-    percent:0
-})
-
-Tumblr.LoadingView = Em.View.extend({
-    classNames:['progress', 'progress-striped', 'active'],
-    template:Em.Handlebars.compile('{{view view.bar}}'),
-    bar:Em.View.extend({
-        classNames:['bar'],
-        percentBinding:'parentView.controller.percent',
-        _percent_observer:function(){
-            this.$().css('width', this.get('percent')+'%')
-        }.observes('percent'),
-        didInsertElement:function() {
-            var view = this
-            this.$().bind("ajaxProgress", function(jqEvent, progressEvent, jqXHR) {
-                if (progressEvent.lengthComputable) {
-                    view.set('percent', Math.round(progressEvent.loaded / progressEvent.total * 100))
-                }
-            })   
-        }
-    })
-})
