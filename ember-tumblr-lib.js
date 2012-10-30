@@ -84,7 +84,14 @@ Tumblr.Router = Ember.Router.extend({
             /* Actions */
             showHome:Ember.Route.transitionTo('index'),
             showPost:Ember.Route.transitionTo('postDetail'),
-
+            showNextPage:function(router) {
+                var page = router.getWithDefault('onPage', 1)
+                router.transitionTo('page',{page:isNaN(page) && 1 || page+1})
+            },
+            showPreviousPage:function(router) {
+                var page = router.getWithDefault('onPage', 1)
+                router.transitionTo('page',{page:isNaN(page) && 1 || page-1})
+            },            
             connectOutlets:function(router) {
                 router.api.GetBlogInfo(function(data){
                     router.get('tumbleLogController').set('content', data.blog)
@@ -106,23 +113,20 @@ Tumblr.Router = Ember.Router.extend({
                     var page = parseInt(params.page),
                         offset = page-1>-1 ? (page-1)*20 : 0
                     router.api.GetPosts({offset:offset}, function(data){
-                        router.get('postsController').set('content', data.posts)        
+                        router.get('postsController').set('content', data.posts)
+                        router.set('onPage', page) 
                     })
                     router.get('tumbleLogController').connectOutlet('posts')
                 }
             }),
             postDetail:Em.Route.extend({
                 route:'/post/:id',
-                deserialize:function(router,params) {
-                    var id = params.id
-                    return router.api.GetPosts({id:id},function(data){
-                        router.get('tumbleLogController').set('content', data.blog)
-                        return data.posts[0]
-                    })               
-                },
-                connectOutlets:function(router,post) {
+                connectOutlets:function(router,params) {
                     router.get('applicationController').connectOutlet('tumbleLog')
-                    router.get('tumbleLogController').connectOutlet('postDetail', post)
+                    return router.api.GetPosts({id:params.id},function(data){                        
+                        router.get('tumbleLogController').set('content', data.blog)
+                        router.get('tumbleLogController').connectOutlet('postDetail', data.posts[0])
+                    }) 
                 }
             })  
         })
@@ -137,7 +141,12 @@ Tumblr.ApplicationController = Em.Controller.extend()
 Tumblr.TumbleLogView = Em.View.extend({
     templateName:'tumblr-app-tmpl'
 })
-Tumblr.TumbleLogController = Em.Controller.extend()
+Tumblr.TumbleLogController = Em.Controller.extend({
+    page:1
+})
+Tumblr.NavigationView = Em.View.extend({   
+    template:Em.Handlebars.compile('<a {{action showPreviousPage}}>Previous</a> | <a {{action showNextPage}}>Next</a>')
+})
 
 /* Core Views and Controllers */
 Tumblr.Post = Em.Object.extend({
@@ -172,30 +181,29 @@ Tumblr.PostsView = Em.CollectionView.extend({
 })
 Tumblr.PostsController = Em.ArrayController.extend()
 
-
-Tumblr.assignController = function(view, viewController) {
-    // https://github.com/emberjs/ember.js/issues/1048
-    var controller = viewController.create({
-          content: view.get('content'),
-          view: view
-        });
-    view.set('controller', controller);
-    // TODO: Add willDestory method to view
-}
-
-
 /* Helper Views */
 Tumblr.PhotoView = Em.View.extend({
     classNames:['photo'],
     init:function() {
         this._super()
-        /* Convert our sizes into easily accessible properties */
-        /* TODO: Make these computed properties with fallbacks to a smaller size */
-        this.get('content.alt_sizes').forEach(function(size) {
-            this.set('photo-url-'+size.width, Em.Object.create(size))
-        }, this)
+        var sizes = Em.ArrayController.create({
+            content:this.get('content.alt_sizes'),
+            sortProperties: ['width']
+        })
+        this.set('sizes',sizes)
+    },
+    unknownProperty: function(keyName) {
+        if (keyName.indexOf('photo-url-') != -1) {
+            var sizes = this.get('sizes'),
+                width = parseInt(keyName.replace('photo-url-','')),
+                size = sizes.findProperty('width', width)
+            if (!size) {
+                size = sizes.get('lastObject')
+            }
+            return size
+        }
     }
-})   
+})
 Tumblr.PhotoSetView = Em.CollectionView.extend({
     tagName:'div',
     classNames:['photoset'],

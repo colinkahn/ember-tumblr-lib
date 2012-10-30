@@ -9,6 +9,7 @@
 		    </h1> 
 		    {{&controller.content.description}} 
 		    {{outlet}}
+		    {{view Tumblr.NavigationView contentBinding="controller.page"}}
 		</script>
 
 		<script type="text/x-handlebars" data-template-name="tumblr-post-tmpl">
@@ -159,5 +160,7 @@
 		App.LoadingView = Bootstrap.LoadingView.extend()
 
 		App.initialize(router)
+
+
 	</script>
 </html>
