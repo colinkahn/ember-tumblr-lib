@@ -3,16 +3,30 @@
 		<meta name="api_key" content="3Uj5hvL773MVNlhFJC5gyVftNh4Qxci3hqoPkU3nAzp9bFJ8UB">
 		<link rel="stylesheet" type="text/css" href="lib/bootstrap-combined.min.css">
 
-		<script type="text/x-handlebars" data-template-name="tumblr-app-tmpl">
+		<script type="text/x-handlebars" data-template-name="tumblr-blog-tmpl">
 		    <h1>
 		        <a {{action showHome href=true}}>{{controller.content.title}}</a>
 		    </h1> 
 		    {{&controller.content.description}} 
 		    {{outlet}}
+		</script>
+
+		<script type="text/x-handlebars" data-template-name="tumblr-posts-tmpl">
+			{{collection Tumblr.PostsView contentBinding="controller.content"}}
 		    {{view Tumblr.NavigationView contentBinding="controller.page"}}
 		</script>
 
+		<script type="text/x-handlebars" data-template-name="tumblr-postdetail-tmpl">
+			{{view Tumblr.PostDetailView contentBinding="controller.content"}}
+		</script>
+
 		<script type="text/x-handlebars" data-template-name="tumblr-post-tmpl">
+			{{#detail}}
+			<ul class="breadcrumb">
+				<li><a {{action showCurrentPage}} href="#">Back</a></li>
+			</ul>
+			{{/detail}}
+
 		    {{#text}}
 		        <h3>{{&view.content.title}}</h3>
 		        {{&view.content.body}}
@@ -22,7 +36,7 @@
 		        {{#preview}}
 		             <a {{action showPost view.content href=true}} class="thumbnail">
 		                {{#view Tumblr.PhotoView contentBinding="view.content.photos.firstObject"}}
-		                 <img {{bindAttr src="view.photo-url-75.url"}}>
+		                	<img {{bindAttr src="view.photo-url-75.url"}}>
 		                {{/view}}
 		            </a>
 		         {{/preview}}
@@ -99,9 +113,10 @@
 		        {{/collection}}
 		         <ul>
 		             <li><a {{bindAttr href="view.post.reblogUrl"}}>Reblog</a>
+		             {{#if view.post.source_url}}
 		             <li><a {{bindAttr href="view.post.source_url"}}>
 		                 {{view.post.source_title}}</a>
-		             <li>
+		             {{/if}}
 		        </ul>
 		    {{/detail}}
 		</script> 
@@ -118,49 +133,13 @@
 	<script type="text/javascript" src="../ember-bootstrap-lib.js"></script>
 
 	<script type="text/javascript">
-		/*  Besides templates, 
-			we also need a tumblrJSON
-			function we can pull data 
-			in with 
-		*/
-		tumblrJSON = function(resolve) {
-			/* In normal cases you would have an ajax call here...
-
-				jQuery.ajax({
-					url:'example.json',
-					dataType: 'json',
-					success: resolve <--- Important!!!
-				})
-			
-			But for this example we'll just wait a second and load it from a variable... */
-
-			Em.run.later(function() {
-				resolve(TUMBLR_EXAMPLE_JSON)				
-			}, 1000)
-		}
-
-		router = Tumblr.Router.create()
-		App = Tumblr.Application.create()
-
-		router.set('api', Tumblr.Api.create({
-			api_key:'3Uj5hvL773MVNlhFJC5gyVftNh4Qxci3hqoPkU3nAzp9bFJ8UB',
-			base_hostname:'w0w13z0w13.tumblr.com',
-			postClass:Tumblr.Post
-		}))
-
-		App.ApplicationView = Tumblr.ApplicationView.extend()
-		App.ApplicationController = Tumblr.ApplicationController.extend()
-		App.TumbleLogView = Tumblr.TumbleLogView.extend()
-		App.TumbleLogController = Tumblr.TumbleLogController.extend()
-		App.PostDetailView = Tumblr.PostDetailView.extend()
-		App.PostDetailController = Tumblr.PostDetailController.extend() 
-		App.PostsView = Tumblr.PostsView.extend()
-		App.PostsController = Tumblr.PostsController.extend()
-		App.LoadingController = Bootstrap.LoadingController.extend()
-		App.LoadingView = Bootstrap.LoadingView.extend()
-
-		App.initialize(router)
-
-
+		App = Tumblr.Application.create({
+			apiParams:{
+				api_key:'3Uj5hvL773MVNlhFJC5gyVftNh4Qxci3hqoPkU3nAzp9bFJ8UB',
+				base_hostname:'w0w13z0w13.tumblr.com',
+				postClass:Tumblr.Post
+			}
+		})
+		App.initialize()
 	</script>
 </html>

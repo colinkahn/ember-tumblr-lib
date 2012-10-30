@@ -62,13 +62,6 @@ Tumblr.Api = Em.Object.extend({
     }
 })
 
-/*
-api = Tumblr.Api.create({api_key:'3Uj5hvL773MVNlhFJC5gyVftNh4Qxci3hqoPkU3nAzp9bFJ8UB',base_hostname:'w0w13z0w13.tumblr.com'})
-api.GetBlogInfo(function(data){ console.log('blog', data) })
-api.GetPosts({}, function(data){ console.log('posts', data.posts) })
-api.GetPosts({id:31713357832}, function(data){ console.log('post by id', data.posts) })
-*/
-
 // https://github.com/emberjs/ember.js/issues/1378
 
 Tumblr.Router = Ember.Router.extend({
@@ -91,20 +84,24 @@ Tumblr.Router = Ember.Router.extend({
             showPreviousPage:function(router) {
                 var page = router.getWithDefault('onPage', 1)
                 router.transitionTo('page',{page:isNaN(page) && 1 || page-1})
-            },            
+            }, 
+            showCurrentPage:function(router) {
+                var page = router.getWithDefault('onPage', 1)
+                router.transitionTo('page',{page:isNaN(page) && 1 || page})                
+            },           
             connectOutlets:function(router) {
                 router.api.GetBlogInfo(function(data){
-                    router.get('tumbleLogController').set('content', data.blog)
+                    router.get('tumblrBlogController').set('content', data.blog)
                 })
-                router.get('applicationController').connectOutlet('tumbleLog')
+                router.get('applicationController').connectOutlet('tumblrBlog')
             },
             index: Em.Route.extend({
                 route: '/',
                 connectOutlets:function(router) {
                     router.api.GetPosts({}, function(data){
-                        router.get('postsController').set('content', data.posts)        
+                        router.get('tumblrPostsController').set('content', data.posts)        
                     })
-                    router.get('tumbleLogController').connectOutlet('posts')
+                    router.get('tumblrBlogController').connectOutlet('tumblrPosts')
                 }
             }),
             page: Em.Route.extend({
@@ -113,19 +110,19 @@ Tumblr.Router = Ember.Router.extend({
                     var page = parseInt(params.page),
                         offset = page-1>-1 ? (page-1)*20 : 0
                     router.api.GetPosts({offset:offset}, function(data){
-                        router.get('postsController').set('content', data.posts)
+                        router.get('tumblrPostsController').set('content', data.posts)
                         router.set('onPage', page) 
                     })
-                    router.get('tumbleLogController').connectOutlet('posts')
+                    router.get('tumblrBlogController').connectOutlet('tumblrPosts')
                 }
             }),
             postDetail:Em.Route.extend({
                 route:'/post/:id',
                 connectOutlets:function(router,params) {
-                    router.get('applicationController').connectOutlet('tumbleLog')
+                    router.get('applicationController').connectOutlet('tumblrBlog')
                     return router.api.GetPosts({id:params.id},function(data){                        
-                        router.get('tumbleLogController').set('content', data.blog)
-                        router.get('tumbleLogController').connectOutlet('postDetail', data.posts[0])
+                        router.get('tumblrBlogController').set('content', data.blog)
+                        router.get('tumblrBlogController').connectOutlet('tumblrPostDetail', data.posts[0])
                     }) 
                 }
             })  
@@ -133,22 +130,32 @@ Tumblr.Router = Ember.Router.extend({
     })
 })
 
+/* Outlet Views */
 Tumblr.ApplicationView = Em.View.extend({
     template: Em.Handlebars.compile('{{outlet}}')
 })
 Tumblr.ApplicationController = Em.Controller.extend()
 
-Tumblr.TumbleLogView = Em.View.extend({
-    templateName:'tumblr-app-tmpl'
+Tumblr.TumblrBlogView = Em.View.extend({
+    templateName:'tumblr-blog-tmpl'
 })
-Tumblr.TumbleLogController = Em.Controller.extend({
+Tumblr.TumblrBlogController = Em.Controller.extend({
     page:1
 })
-Tumblr.NavigationView = Em.View.extend({   
-    template:Em.Handlebars.compile('<a {{action showPreviousPage}}>Previous</a> | <a {{action showNextPage}}>Next</a>')
+Tumblr.TumblrPostsView = Em.View.extend({
+    templateName:'tumblr-posts-tmpl'
+})
+Tumblr.TumblrPostsController = Em.Controller.extend()
+Tumblr.TumblrPostDetailView = Em.View.extend({
+    templateName: 'tumblr-postdetail-tmpl'
+})
+Tumblr.TumblrPostDetailController = Em.Controller.extend()
+
+Tumblr.NavigationView = Em.View.extend({
+    template:Em.Handlebars.compile('<a {{action showPreviousPage}} href="#">Previous</a> | <a {{action showNextPage}} href="#">Next</a>')
 })
 
-/* Core Views and Controllers */
+/* Core Object Views */
 Tumblr.Post = Em.Object.extend({
     reblogUrl:function() {
         var id = this.get('id'),
@@ -164,22 +171,18 @@ Tumblr.PostView = Em.View.extend({
 })
 
 Tumblr.PostDetailView = Tumblr.PostView.extend({
-    contentBinding:'controller.content',
     classNames:['detail'],
     is_detail:true
 })
-Tumblr.PostDetailController = Em.Controller.extend()
 
 Tumblr.PostsView = Em.CollectionView.extend({
     tagName:'ul',
     classNames:['thumbnails', 'row'],
-    contentBinding:'controller.content',
     itemViewClass: Tumblr.PostView.extend({
         tagName:'li',
         classNames:['preview', 'span2']
     })
 })
-Tumblr.PostsController = Em.ArrayController.extend()
 
 /* Helper Views */
 Tumblr.PhotoView = Em.View.extend({
@@ -204,6 +207,7 @@ Tumblr.PhotoView = Em.View.extend({
         }
     }
 })
+
 Tumblr.PhotoSetView = Em.CollectionView.extend({
     tagName:'div',
     classNames:['photoset'],
@@ -221,9 +225,26 @@ Tumblr.VideoView = Em.View.extend({
     }
 })
 
+/* Application */
 Tumblr.Application = Em.Application.extend({
     autoinit: false,
+    init:function() {
+        this._super()
+        this.ApplicationView = Tumblr.ApplicationView
+        this.ApplicationController = Tumblr.ApplicationController
+        this.TumblrBlogView = Tumblr.TumblrBlogView
+        this.TumblrBlogController = Tumblr.TumblrBlogController
+        this.TumblrPostDetailView = Tumblr.TumblrPostDetailView
+        this.TumblrPostDetailController = Tumblr.TumblrPostDetailController 
+        this.TumblrPostsView = Tumblr.TumblrPostsView
+        this.TumblrPostsController = Tumblr.TumblrPostsController
+    },
     initialize:function(router) {
+        if (!router) {
+            router = Tumblr.Router.create({
+                api: Tumblr.Api.create(this.getWithDefault('apiParams',{}))
+            })
+        }
         this._super(router)
         this.registerHandlebarsHelpers()
     },
