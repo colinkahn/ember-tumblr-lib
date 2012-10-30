@@ -6,18 +6,26 @@
 		<script type="text/x-handlebars" data-template-name="tumblr-blog-tmpl">
 		    <h1>
 		        <a {{action showHome href=true}}>{{controller.content.title}}</a>
-		    </h1> 
-		    {{&controller.content.description}} 
+		    </h1>
+		    {{&controller.content.description}}
 		    {{outlet}}
 		</script>
 
 		<script type="text/x-handlebars" data-template-name="tumblr-posts-tmpl">
-			{{collection Tumblr.PostsView contentBinding="controller.content"}}
-		    {{view Tumblr.NavigationView contentBinding="controller.page"}}
+			{{#if controller.is_loading}}
+				Loading...
+			{{else}}
+				{{collection Tumblr.PostsView contentBinding="controller.content"}}
+			    {{view Tumblr.NavigationView contentBinding="controller.page"}}
+			{{/if}}
 		</script>
 
 		<script type="text/x-handlebars" data-template-name="tumblr-postdetail-tmpl">
-			{{view Tumblr.PostDetailView contentBinding="controller.content"}}
+			{{#if controller.is_loading}}
+				Loading...
+			{{else}}
+				{{view Tumblr.PostDetailView contentBinding="controller.content"}}
+			{{/if}}
 		</script>
 
 		<script type="text/x-handlebars" data-template-name="tumblr-post-tmpl">
@@ -31,7 +39,7 @@
 		        <h3>{{&view.content.title}}</h3>
 		        {{&view.content.body}}
 		    {{/text}}
-		    
+
 		    {{#photo}}
 		        {{#preview}}
 		             <a {{action showPost view.content href=true}} class="thumbnail">
@@ -40,7 +48,7 @@
 		                {{/view}}
 		            </a>
 		         {{/preview}}
-		    
+
 		         {{#detail}}
 		            {{#collection Tumblr.PhotoSetView contentBinding="view.content.photos"}}
 		                <img {{bindAttr src="view.photo-url-500.url"}}>
@@ -48,25 +56,25 @@
 		            <div class="caption">{{&view.content.caption}}</div>
 		        {{/detail}}
 		    {{/photo}}
-		                
+
 		    {{#quote}}
 		        <blockquote>{{view.content.text}}</blockquote>
-		        {{&view.content.source}}       
+		        {{&view.content.source}}
 		    {{/quote}}
-		     
+
 		    {{#link}}
 		        <a {{bindAttr href="view.post.url"}}><h3>{{&view.post.title}}</h3></a>
 		        {{&view.post.description}}
-		    {{/link}}   
+		    {{/link}}
 
-		    {{#chat}}       
-		        <h3>{{view.post.title}}</h3>                
+		    {{#chat}}
+		        <h3>{{view.post.title}}</h3>
 		       {{#collection tagName="dl" contentBinding="view.post.dialogue"}}
 		            <dt>{{view.content.name}}</dt>
 		            <dd>{{view.content.phrase}}</dd>
 		        {{/collection}}
 		    {{/chat}}
-		            
+
 		    {{#audio}}
 		         {{&view.post.player}}
 		         <dl>
@@ -85,12 +93,12 @@
 		             <dt>Year</dt>
 		                 <dd>{{view.post.year}}</dd>
 		    {{/audio}}
-		            
+
 		    {{#video}}
 		        {{#preview}}
-		             <a {{action showPost view.content href=true}} class="thumbnail">                
+		             <a {{action showPost view.content href=true}} class="thumbnail">
 		                 <img {{bindAttr src="view.content.thumbnail_url"}}>
-		            </a>                
+		            </a>
 		        {{/preview}}
 		        {{#detail}}
 		            {{#view Tumblr.VideoView contentBinding="view.content.player"}}
@@ -99,14 +107,14 @@
 		            {{/view}}
 		        {{/detail}}
 		    {{/video}}
-		             
+
 		    {{#answer}}
 		         <h4><a {{bindAttr href="view.post.asking_url"}}>
 		             {{view.post.asking_name}}</a> asks...</h4>
 		         <blockquote>{{view.post.question}}</blockquote>
 		         {{&view.post.answer}}
 		    {{/answer}}
-		    
+
 		    {{#detail}}
 		        {{#collection tagName="ul" contentBinding="view.content.tags"}}
 		            {{&view.content}}
@@ -119,7 +127,7 @@
 		             {{/if}}
 		        </ul>
 		    {{/detail}}
-		</script> 
+		</script>
 
 	</head>
 	<body class="container"></body>

@@ -9,10 +9,10 @@ Tumblr.Api = Em.Object.extend({
     postClass:Em.Object,
     _WrapCallback:function(callback, deferred) {
         var api = this,
-            wrapped = function(json) { 
+            wrapped = function(json) {
                 var data = api._MakeEmberObjects(json),
                     toConnectOutlets = callback(data)
-                deferred.resolve(toConnectOutlets) 
+                deferred.resolve(toConnectOutlets)
             }
         return wrapped
     },
@@ -28,17 +28,17 @@ Tumblr.Api = Em.Object.extend({
                                 })
         return data
     },
-    _FetchUrl:function(url, callback, params) {        
+    _FetchUrl:function(url, callback, params) {
         var ajaxParams = {
             dataType:'jsonp',
             url:url,
-            data:params, 
-            success:callback       
+            data:params,
+            success:callback
         }
         jQuery.ajax(ajaxParams)
     },
     _NewDeferred:function() {
-        return jQuery.Deferred()    
+        return jQuery.Deferred()
     },
     _BuildURL:function(at) {
         var base_hostname = this.get('base_hostname'),
@@ -58,7 +58,7 @@ Tumblr.Api = Em.Object.extend({
             deferred = this._NewDeferred(),
             wrapped = this._WrapCallback(callback,deferred)
         this._FetchUrl(url,wrapped,params)
-        return deferred.promise()        
+        return deferred.promise()
     }
 })
 
@@ -84,11 +84,11 @@ Tumblr.Router = Ember.Router.extend({
             showPreviousPage:function(router) {
                 var page = router.getWithDefault('onPage', 1)
                 router.transitionTo('page',{page:isNaN(page) && 1 || page-1})
-            }, 
+            },
             showCurrentPage:function(router) {
                 var page = router.getWithDefault('onPage', 1)
-                router.transitionTo('page',{page:isNaN(page) && 1 || page})                
-            },           
+                router.transitionTo('page',{page:isNaN(page) && 1 || page})
+            },
             connectOutlets:function(router) {
                 router.api.GetBlogInfo(function(data){
                     router.get('tumblrBlogController').set('content', data.blog)
@@ -99,9 +99,12 @@ Tumblr.Router = Ember.Router.extend({
                 route: '/',
                 connectOutlets:function(router) {
                     router.api.GetPosts({}, function(data){
-                        router.get('tumblrPostsController').set('content', data.posts)        
+                        router.get('tumblrPostsController').set('content', data.posts)
+                        router.get('tumblrPostsController').set('is_loading', false)
+                        router.set('onPage', 1)
                     })
                     router.get('tumblrBlogController').connectOutlet('tumblrPosts')
+                    router.get('tumblrPostsController').set('is_loading', true)
                 }
             }),
             page: Em.Route.extend({
@@ -111,21 +114,23 @@ Tumblr.Router = Ember.Router.extend({
                         offset = page-1>-1 ? (page-1)*20 : 0
                     router.api.GetPosts({offset:offset}, function(data){
                         router.get('tumblrPostsController').set('content', data.posts)
-                        router.set('onPage', page) 
+                        router.get('tumblrPostsController').set('is_loading', false)
+                        router.set('onPage', page)
                     })
                     router.get('tumblrBlogController').connectOutlet('tumblrPosts')
+                    router.get('tumblrPostsController').set('is_loading', true)
                 }
             }),
             postDetail:Em.Route.extend({
                 route:'/post/:id',
                 connectOutlets:function(router,params) {
                     router.get('applicationController').connectOutlet('tumblrBlog')
-                    return router.api.GetPosts({id:params.id},function(data){                        
+                    return router.api.GetPosts({id:params.id},function(data){
                         router.get('tumblrBlogController').set('content', data.blog)
                         router.get('tumblrBlogController').connectOutlet('tumblrPostDetail', data.posts[0])
-                    }) 
+                    })
                 }
-            })  
+            })
         })
     })
 })
@@ -235,7 +240,7 @@ Tumblr.Application = Em.Application.extend({
         this.TumblrBlogView = Tumblr.TumblrBlogView
         this.TumblrBlogController = Tumblr.TumblrBlogController
         this.TumblrPostDetailView = Tumblr.TumblrPostDetailView
-        this.TumblrPostDetailController = Tumblr.TumblrPostDetailController 
+        this.TumblrPostDetailController = Tumblr.TumblrPostDetailController
         this.TumblrPostsView = Tumblr.TumblrPostsView
         this.TumblrPostsController = Tumblr.TumblrPostsController
     },
@@ -250,19 +255,18 @@ Tumblr.Application = Em.Application.extend({
     },
     post_types:['photo', 'video', 'text', 'quote', 'link', 'chat', 'audio', 'answer'],
     registerHandlebarsHelpers:function() {
-    
         /* Render block if the view does not have is_detail set to 'true' */
         Em.Handlebars.registerHelper('preview', function(options) {
             var is_detail = !Ember.Handlebars.getPath(this, 'view.is_detail', options)
             return !is_detail ? options.inverse(this) : options.fn(this);
         });
-        
+
         /* Render block if the view has is_detail set to 'true' */
         Em.Handlebars.registerHelper('detail', function(options) {
             var is_detail = Ember.Handlebars.getPath(this, 'view.is_detail', options)
             return !is_detail ? options.inverse(this) : options.fn(this);
         });
-        
+
         /* Render each block if the type of the content matches the type of the tag */
         jQuery.each(this.post_types, function(i,type) {
             Em.Handlebars.registerHelper(type, function(options) {
