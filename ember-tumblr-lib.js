@@ -5,148 +5,46 @@ Tumblr = Em.Object.create({
     base_hostname:'w0w13z0w13.tumblr.com'
 })
 
-Tumblr.adapter = DS.Adapter.create({
-    findQuery: function(store, type, query, modelArray) {
-        var url = type.url,
-            base_hostname = Tumblr.get('base_hostname'),
-            api_key = Tumblr.get('api_key'),
-            ajaxParams = {
-                dataType: 'jsonp',
-                url: url.fmt(base_hostname, api_key),
-                data: query,
-                success:function(data) {
-                    if (Tumblr.Post == type) {
-                        modelArray.load(data.response.posts);
-                    } else if (Tumblr.Blog == type) {
-                        data.response.blog.id = data.response.blog.name
-                        modelArray.load([data.response.blog]);
-                    }
-                }
-            }
-        jQuery.ajax(ajaxParams)
-    },
-    find: function(store, type, id) {
-        var url = type.url,
-            base_hostname = Tumblr.get('base_hostname'),
-            api_key = Tumblr.get('api_key'),
-            ajaxParams = {
-                dataType: 'jsonp',
-                url: url.fmt(base_hostname, api_key),
-                data: {id:id},
-                success:function(data) {
-                    if (Tumblr.Post == type) {
-                        store.load(type, id, data.response.posts[0]);
-                    } else if (Tumblr.Blog == type) {
-                        data.response.blog.id = data.response.blog.name
-                        modelArray.load(data.response.blog);
-                    }
-                }
-            }
-        jQuery.ajax(ajaxParams)
+Ember.ResourceAdapter.reopen({
+    _prepareResourceRequest: function(params){
+        params.dataType = 'JSONP'
     }
 })
-Tumblr.adapter.registerTransform('jsonval', {
-    fromJSON: function(value) {
-        return value
-    },
-    toJSON: function(value) {
-        return value
+
+Tumblr.Blog = Ember.Resource.extend({
+    resourceUrl: 'http://api.tumblr.com/v2/blog/%@/info?api_key=%@'.fmt(Tumblr.get('base_hostname'), Tumblr.get('api_key')),
+    resourceName: 'blog',
+    deserialize: function(json) {
+        try {
+            return this._super(json.response.blog)
+        } finally {
+            return this
+        }
+    }
+})
+
+Tumblr.blogController = Ember.ResourceController.create({
+  resourceType: Tumblr.Blog
+});
+
+Tumblr.Post = Ember.Resource.extend({
+    resourceUrl: 'http://api.tumblr.com/v2/blog/%@/posts?api_key=%@'.fmt(Tumblr.get('base_hostname'), Tumblr.get('api_key')),
+    resourceName: 'post',
+    deserialize: function(json) {
+        try {
+            return this._super(json.response.posts[0])
+        } finally {
+            return this
+        }
     }
 });
-Tumblr.store = DS.Store.create({
-    revision: 7,
-    adapter: Tumblr.adapter
+
+Tumblr.postController = Ember.ResourceController.create({
+    resourceType: Tumblr.Post,
+    loadAll: function(json) {
+        this._super(json.response.posts)
+    }
 });
-
-Tumblr.Blog = DS.Model.extend({
-    title: DS.attr('jsonval'),
-    posts: DS.attr('jsonval'),
-    name: DS.attr('jsonval'),
-    updated: DS.attr('jsonval'),
-    description: DS.attr('jsonval'),
-    ask: DS.attr('jsonval'),
-    ask_anon: DS.attr('jsonval'),
-    likes: DS.attr('jsonval')
-})
-Tumblr.Blog.reopenClass({
-    url: "http://api.tumblr.com/v2/blog/%@/info?api_key=%@"
-})
-
-Tumblr.Post = DS.Model.extend({
-    /* General
-     * http://www.tumblr.com/docs/en/api/v2#posts
-     */
-    blog_name: DS.attr('jsonval'),
-    post_url: DS.attr('jsonval'),
-    type: DS.attr('jsonval'),
-    timestamp: DS.attr('jsonval'),
-    date: DS.attr('jsonval'),
-    format: DS.attr('jsonval'),
-    reblog_key: DS.attr('jsonval'),
-    bookmarklet: DS.attr('jsonval'),
-    mobile: DS.attr('jsonval'),
-    state: DS.attr('jsonval'),
-    source_url: DS.attr('jsonval'),
-    source_title: DS.attr('jsonval'),
-    liked: DS.attr('jsonval'),
-    total_posts: DS.attr('jsonval'),
-
-    /* Text
-     * http://www.tumblr.com/docs/en/api/v2#text-posts
-     */
-    title: DS.attr('jsonval'),
-    body: DS.attr('jsonval'),
-
-    /* Photo
-     * http://www.tumblr.com/docs/en/api/v2#photo-posts
-     */
-     photos: DS.attr('jsonval'),
-     caption: DS.attr('jsonval'),
-     width: DS.attr('jsonval'),
-     height: DS.attr('jsonval'),
-
-    /* Quote
-     * http://www.tumblr.com/docs/en/api/v2#quote-posts
-     */
-     text: DS.attr('jsonval'),
-     source: DS.attr('jsonval'),
-
-    /* Link
-     * http://www.tumblr.com/docs/en/api/v2#link-posts
-     */
-     url: DS.attr('jsonval'),
-     description: DS.attr('jsonval'),
-
-    /* Chat
-     * http://www.tumblr.com/docs/en/api/v2#chat-posts
-     */
-     dialogue: DS.attr('jsonval'),
-
-    /* Audio
-     * http://www.tumblr.com/docs/en/api/v2#audio-posts
-     */
-    player: DS.attr('jsonval'),
-    plays: DS.attr('jsonval'),
-    album_art: DS.attr('jsonval'),
-    artist: DS.attr('jsonval'),
-    album: DS.attr('jsonval'),
-    track_name: DS.attr('jsonval'),
-    track_jsonval: DS.attr('jsonval'),
-    year: DS.attr('jsonval'),
-
-    /* Video
-     * http://www.tumblr.com/docs/en/api/v2#video-posts
-     */
-
-    reblogUrl:function() {
-        var id = this.get('id'),
-            reblog_key = this.get('reblog_key')
-        return "http://www.tumblr.com/reblog/%@/%@".fmt(id, reblog_key)
-    }.property()
-})
-Tumblr.Post.reopenClass({
-    url: "http://api.tumblr.com/v2/blog/%@/posts?api_key=%@"
-})
 
 // https://github.com/emberjs/ember.js/issues/1378
 
