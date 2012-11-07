@@ -1,65 +1,151 @@
 // http://stackoverflow.com/questions/1568210/integrating-tumblr-blog-with-website/3393151#3393151
 
-Tumblr = {}
+Tumblr = Em.Object.create({
+    api_key:'3Uj5hvL773MVNlhFJC5gyVftNh4Qxci3hqoPkU3nAzp9bFJ8UB',
+    base_hostname:'w0w13z0w13.tumblr.com'
+})
 
-Tumblr.Api = Em.Object.extend({
-    api_key:null,
-    base_hostname:null,
-    blogClass:Em.Object,
-    postClass:Em.Object,
-    _WrapCallback:function(callback, deferred) {
-        var api = this,
-            wrapped = function(json) {
-                var data = api._MakeEmberObjects(json),
-                    toConnectOutlets = callback(data)
-                deferred.resolve(toConnectOutlets)
+Tumblr.adapter = DS.Adapter.create({
+    findQuery: function(store, type, query, modelArray) {
+        var url = type.url,
+            base_hostname = Tumblr.get('base_hostname'),
+            api_key = Tumblr.get('api_key'),
+            ajaxParams = {
+                dataType: 'jsonp',
+                url: url.fmt(base_hostname, api_key),
+                data: query,
+                success:function(data) {
+                    if (Tumblr.Post == type) {
+                        modelArray.load(data.response.posts);
+                    } else if (Tumblr.Blog == type) {
+                        data.response.blog.id = data.response.blog.name
+                        modelArray.load([data.response.blog]);
+                    }
+                }
             }
-        return wrapped
-    },
-    _MakeEmberObjects:function(json) {
-        var blog = json.response.blog,
-            posts = json.response.posts,
-            blogClass = this.get('blogClass'),
-            postClass = this.get('postClass'),
-            data = {}
-        data.blog = blog && blogClass.create(blog)
-        data.posts = posts && jQuery.map(posts, function(post){
-                                    return postClass.create(post)
-                                })
-        return data
-    },
-    _FetchUrl:function(url, callback, params) {
-        var ajaxParams = {
-            dataType:'jsonp',
-            url:url,
-            data:params,
-            success:callback
-        }
         jQuery.ajax(ajaxParams)
     },
-    _NewDeferred:function() {
-        return jQuery.Deferred()
-    },
-    _BuildURL:function(at) {
-        var base_hostname = this.get('base_hostname'),
-            api_key = this.get('api_key'),
-            url = "http://api.tumblr.com/v2/blog/%@/%@?api_key=%@".fmt(base_hostname, at, api_key)
-        return url
-    },
-    GetBlogInfo:function(callback) {
-        var url = this._BuildURL('info')
-            deferred = this._NewDeferred(),
-            wrapped = this._WrapCallback(callback,deferred)
-        this._FetchUrl(url,wrapped,{})
-        return deferred.promise()
-    },
-    GetPosts:function(params, callback) {
-        var url = this._BuildURL('posts')
-            deferred = this._NewDeferred(),
-            wrapped = this._WrapCallback(callback,deferred)
-        this._FetchUrl(url,wrapped,params)
-        return deferred.promise()
+    find: function(store, type, id) {
+        var url = type.url,
+            base_hostname = Tumblr.get('base_hostname'),
+            api_key = Tumblr.get('api_key'),
+            ajaxParams = {
+                dataType: 'jsonp',
+                url: url.fmt(base_hostname, api_key),
+                data: {id:id},
+                success:function(data) {
+                    if (Tumblr.Post == type) {
+                        store.load(type, id, data.response.posts[0]);
+                    } else if (Tumblr.Blog == type) {
+                        data.response.blog.id = data.response.blog.name
+                        modelArray.load(data.response.blog);
+                    }
+                }
+            }
+        jQuery.ajax(ajaxParams)
     }
+})
+Tumblr.adapter.registerTransform('jsonval', {
+    fromJSON: function(value) {
+        return value
+    },
+    toJSON: function(value) {
+        return value
+    }
+});
+Tumblr.store = DS.Store.create({
+    revision: 7,
+    adapter: Tumblr.adapter
+});
+
+Tumblr.Blog = DS.Model.extend({
+    title: DS.attr('jsonval'),
+    posts: DS.attr('jsonval'),
+    name: DS.attr('jsonval'),
+    updated: DS.attr('jsonval'),
+    description: DS.attr('jsonval'),
+    ask: DS.attr('jsonval'),
+    ask_anon: DS.attr('jsonval'),
+    likes: DS.attr('jsonval')
+})
+Tumblr.Blog.reopenClass({
+    url: "http://api.tumblr.com/v2/blog/%@/info?api_key=%@"
+})
+
+Tumblr.Post = DS.Model.extend({
+    /* General
+     * http://www.tumblr.com/docs/en/api/v2#posts
+     */
+    blog_name: DS.attr('jsonval'),
+    post_url: DS.attr('jsonval'),
+    type: DS.attr('jsonval'),
+    timestamp: DS.attr('jsonval'),
+    date: DS.attr('jsonval'),
+    format: DS.attr('jsonval'),
+    reblog_key: DS.attr('jsonval'),
+    bookmarklet: DS.attr('jsonval'),
+    mobile: DS.attr('jsonval'),
+    state: DS.attr('jsonval'),
+    source_url: DS.attr('jsonval'),
+    source_title: DS.attr('jsonval'),
+    liked: DS.attr('jsonval'),
+    total_posts: DS.attr('jsonval'),
+
+    /* Text
+     * http://www.tumblr.com/docs/en/api/v2#text-posts
+     */
+    title: DS.attr('jsonval'),
+    body: DS.attr('jsonval'),
+
+    /* Photo
+     * http://www.tumblr.com/docs/en/api/v2#photo-posts
+     */
+     photos: DS.attr('jsonval'),
+     caption: DS.attr('jsonval'),
+     width: DS.attr('jsonval'),
+     height: DS.attr('jsonval'),
+
+    /* Quote
+     * http://www.tumblr.com/docs/en/api/v2#quote-posts
+     */
+     text: DS.attr('jsonval'),
+     source: DS.attr('jsonval'),
+
+    /* Link
+     * http://www.tumblr.com/docs/en/api/v2#link-posts
+     */
+     url: DS.attr('jsonval'),
+     description: DS.attr('jsonval'),
+
+    /* Chat
+     * http://www.tumblr.com/docs/en/api/v2#chat-posts
+     */
+     dialogue: DS.attr('jsonval'),
+
+    /* Audio
+     * http://www.tumblr.com/docs/en/api/v2#audio-posts
+     */
+    player: DS.attr('jsonval'),
+    plays: DS.attr('jsonval'),
+    album_art: DS.attr('jsonval'),
+    artist: DS.attr('jsonval'),
+    album: DS.attr('jsonval'),
+    track_name: DS.attr('jsonval'),
+    track_jsonval: DS.attr('jsonval'),
+    year: DS.attr('jsonval'),
+
+    /* Video
+     * http://www.tumblr.com/docs/en/api/v2#video-posts
+     */
+
+    reblogUrl:function() {
+        var id = this.get('id'),
+            reblog_key = this.get('reblog_key')
+        return "http://www.tumblr.com/reblog/%@/%@".fmt(id, reblog_key)
+    }.property()
+})
+Tumblr.Post.reopenClass({
+    url: "http://api.tumblr.com/v2/blog/%@/posts?api_key=%@"
 })
 
 // https://github.com/emberjs/ember.js/issues/1378
@@ -67,51 +153,22 @@ Tumblr.Api = Em.Object.extend({
 Tumblr.Router = Ember.Router.extend({
     enableLogging:true,
     root: Ember.Route.extend({
+        showHome:Ember.Route.transitionTo('index'),
         index: Em.Route.extend({
             route:'/',
             redirectsTo:'blog.index'
         }),
         blog: Em.Route.extend({
             route:'/blog',
-
-            /* Actions */
-            showHome:Ember.Route.transitionTo('index'),
-            showPost:Ember.Route.transitionTo('postDetail'),
-            showNextPage:function(router) {
-                var page = router.getWithDefault('onPage', 1)
-                router.transitionTo('page',{page:isNaN(page) && 1 || page+1})
-            },
-            showPreviousPage:function(router) {
-                var page = router.getWithDefault('onPage', 1)
-                router.transitionTo('page',{page:isNaN(page) && 1 || page-1})
-            },
-            showCurrentPage:function(router) {
-                var page = router.getWithDefault('onPage', 1)
-                router.transitionTo('page',{page:isNaN(page) && 1 || page})
-            },
-            connectOutlets:function(router) {
-                router.api.GetBlogInfo(function(data){
-                    router.get('tumblrBlogController').set('content', data.blog)
-                })
-                router.get('applicationController').connectOutlet('tumblrBlog')
-            },
             index: Em.Route.extend({
                 route: '/',
-                connectOutlets:function(router) {
-                    router.api.GetPosts({}, function(data){
-                        router.get('tumblrPostsController').set('content', data.posts)
-                        router.get('tumblrPostsController').set('is_loading', false)
-                        router.set('onPage', 1)
-                    })
-                    router.get('tumblrBlogController').connectOutlet('tumblrPosts')
-                    router.get('tumblrPostsController').set('is_loading', true)
-                }
+                redirectsTo: 'blog.posts'
             }),
-            page: Em.Route.extend({
+            posts: Em.Route.extend({
                 route:'/page/:page',
                 connectOutlets:function(router,params) {
                     var page = parseInt(params.page),
-                        offset = page-1>-1 ? (page-1)*20 : 0
+                        offset = (page-1)*20
                     router.api.GetPosts({offset:offset}, function(data){
                         router.get('tumblrPostsController').set('content', data.posts)
                         router.get('tumblrPostsController').set('is_loading', false)
@@ -137,7 +194,7 @@ Tumblr.Router = Ember.Router.extend({
 
 /* Outlet Views */
 Tumblr.ApplicationView = Em.View.extend({
-    template: Em.Handlebars.compile('{{outlet}}')
+    template: Em.Handlebars.compile('<div class="row">{{outlet}}</div>')
 })
 Tumblr.ApplicationController = Em.Controller.extend()
 
@@ -161,13 +218,6 @@ Tumblr.NavigationView = Em.View.extend({
 })
 
 /* Core Object Views */
-Tumblr.Post = Em.Object.extend({
-    reblogUrl:function() {
-        var id = this.get('id'),
-            reblog_key = this.get('reblog_key')
-        return "http://www.tumblr.com/reblog/%@/%@".fmt(id, reblog_key)
-    }.property()
-})
 
 Tumblr.PostView = Em.View.extend({
     classNames:['post'],
@@ -181,11 +231,11 @@ Tumblr.PostDetailView = Tumblr.PostView.extend({
 })
 
 Tumblr.PostsView = Em.CollectionView.extend({
-    tagName:'ul',
-    classNames:['thumbnails', 'row'],
+    tagName:'div',
+    classNames:['span7', 'offset5'],
     itemViewClass: Tumblr.PostView.extend({
-        tagName:'li',
-        classNames:['preview', 'span2']
+        tagName:'div',
+        classNames:[]
     })
 })
 

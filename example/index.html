@@ -1,13 +1,36 @@
+<!doctype html>
 <html>
 	<head>
-		<meta name="api_key" content="3Uj5hvL773MVNlhFJC5gyVftNh4Qxci3hqoPkU3nAzp9bFJ8UB">
-		<link rel="stylesheet" type="text/css" href="lib/bootstrap-combined.min.css">
+		<link rel="stylesheet" href="http://twitter.github.com/bootstrap/assets/css/bootstrap.css" type="text/css" />
+		<style>
+		.label a {
+			color:white;
+			text-decoration:none;
+		}
+
+		.media {
+			overflow: visible;
+		}
+
+		.post-flag {
+			position:relative;
+		}
+
+		.post-flag .btn-group {
+			position:absolute;
+			left:-70px;
+		}
+
+		.post-flag .btn-group .btn {
+			width:14px;
+		}
+		</style>
 
 		<script type="text/x-handlebars" data-template-name="tumblr-blog-tmpl">
-		    <h1>
-		        <a {{action showHome href=true}}>{{controller.content.title}}</a>
-		    </h1>
-		    {{&controller.content.description}}
+			<div class="page-header span4" data-spy="affix" data-offset-top="0">
+				<h1><a {{action showHome href=true}}>{{controller.content.title}}</a>
+				<small>{{&controller.content.description}}</small></h1>
+			</div>
 		    {{outlet}}
 		</script>
 
@@ -29,12 +52,6 @@
 		</script>
 
 		<script type="text/x-handlebars" data-template-name="tumblr-post-tmpl">
-			{{#detail}}
-			<ul class="breadcrumb">
-				<li><a {{action showCurrentPage}} href="#">Back</a></li>
-			</ul>
-			{{/detail}}
-
 		    {{#text}}
 		        <h3>{{&view.content.title}}</h3>
 		        {{&view.content.body}}
@@ -135,12 +152,12 @@
 	<script type="text/javascript" src="lib/jquery.js"></script>
 	<script type="text/javascript" src="lib/handlebars-1.0.0.beta.6.js"></script>
 	<script type="text/javascript" src="lib/ember-latest.min.js"></script>
-	<script type="text/javascript" src="lib/jquery.ajaxprogress.js"></script>
+	<script type="text/javascript" src="http://cloud.github.com/downloads/emberjs/data/ember-data-latest.js"></script>
 	<script type="text/javascript" src="example.js"></script>
 	<script type="text/javascript" src="../ember-tumblr-lib.js"></script>
-	<script type="text/javascript" src="../ember-bootstrap-lib.js"></script>
 
 	<script type="text/javascript">
+		/*
 		App = Tumblr.Application.create({
 			apiParams:{
 				api_key:'3Uj5hvL773MVNlhFJC5gyVftNh4Qxci3hqoPkU3nAzp9bFJ8UB',
@@ -149,5 +166,8 @@
 			}
 		})
 		App.initialize()
+		*/
 	</script>
+		<script type="text/javascript" src="http://twitter.github.com/bootstrap/assets/js/bootstrap-carousel.js"></script>
+	<script type="text/javascript" src="http://twitter.github.com/bootstrap/assets/js/bootstrap-affix.js"></script>
 </html>
