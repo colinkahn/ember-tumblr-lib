@@ -1,6 +1,7 @@
 Tumblr = Em.Object.create({
     api_key:'3Uj5hvL773MVNlhFJC5gyVftNh4Qxci3hqoPkU3nAzp9bFJ8UB',
-    base_hostname:'youmightfindyourself.tumblr.com'
+    base_hostname:'demo.tumblr.com',
+    posts_per_page:6
 })
 
 Ember.ResourceAdapter.reopen({
@@ -52,7 +53,7 @@ Tumblr.Post = Ember.Resource.extend({
                 }, this)
                 break;
             case 'player':
-                if (value.length) {
+                if (typeof value != 'string') {
                     value.forEach(function(embed){
                         var key = 'video_embed_'+embed.width
                         this.set(key, embed.embed_code)
@@ -112,10 +113,12 @@ Tumblr.app = Em.Application.create({
                 },
                 connectOutlets:function(router,params) {
                     var page = parseInt(params.page),
-                        offset = (page-1)*20
+                        per_page = Tumblr.get('posts_per_page'),
+                        offset = (page-1)*per_page
                     router.get('pagerController').set('page',page)
                     router.get('applicationController').connectOutlet('posts')
-                    router.get('postsController').loadQuery({limit:6, offset:offset})
+                    router.get('postsController').clear() // Immediately clear existing posts
+                    router.get('postsController').loadQuery({limit:per_page, offset:offset})
                 }
             }),
             postDetail:Em.Route.extend({
@@ -175,6 +178,7 @@ Tumblr.app = Em.Application.create({
     PagerController: Em.ArrayController.extend({
         url:'#/page/%@',
         page:1,
+        totalPostsBinding: 'Tumblr.app.router.applicationController.content.posts',
         init:function() {
             this._super()
             var previous = Ember.Object.create({
@@ -207,8 +211,11 @@ Tumblr.app = Em.Application.create({
             return this.get('page') <= 1
         }).property('page').cacheable(),
         nextDisabled: Ember.computed(function() {
-            return false
-        }).property('page').cacheable()
+            var totalPosts = this.get('totalPosts'),
+                per_page = Tumblr.get('posts_per_page'),
+                page = this.get('page')
+            return ((page+1)*per_page) > totalPosts
+        }).property('page', 'totalPosts').cacheable()
     }),
 
     post_types:['photo', 'video', 'text', 'quote', 'link', 'chat', 'audio', 'answer'],
