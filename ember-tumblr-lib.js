@@ -1,8 +1,6 @@
-// http://stackoverflow.com/questions/1568210/integrating-tumblr-blog-with-website/3393151#3393151
-
 Tumblr = Em.Object.create({
     api_key:'3Uj5hvL773MVNlhFJC5gyVftNh4Qxci3hqoPkU3nAzp9bFJ8UB',
-    base_hostname:'w0w13z0w13.tumblr.com'
+    base_hostname:'youmightfindyourself.tumblr.com'
 })
 
 Ember.ResourceAdapter.reopen({
@@ -15,203 +13,216 @@ Tumblr.Blog = Ember.Resource.extend({
     resourceUrl: 'http://api.tumblr.com/v2/blog/%@/info?api_key=%@'.fmt(Tumblr.get('base_hostname'), Tumblr.get('api_key')),
     resourceName: 'blog',
     deserialize: function(json) {
-        try {
+        if (json.response) {
             return this._super(json.response.blog)
-        } finally {
+        } else {
             return this
         }
+    },
+    _resourceUrl: function() {
+        return this.resourceUrl
     }
 })
-
-Tumblr.blogController = Ember.ResourceController.create({
-  resourceType: Tumblr.Blog
-});
 
 Tumblr.Post = Ember.Resource.extend({
     resourceUrl: 'http://api.tumblr.com/v2/blog/%@/posts?api_key=%@'.fmt(Tumblr.get('base_hostname'), Tumblr.get('api_key')),
     resourceName: 'post',
     deserialize: function(json) {
-        try {
+        if (json.response) {
             return this._super(json.response.posts[0])
-        } finally {
-            return this
+        } else if (json.id) {
+            return this._super(json)
         }
-    }
+    },
+    _resourceUrl: function() {
+        return this.resourceUrl + '&id=' + this._resourceId()
+    },
+    deserializeProperty:function(prop, value) {
+        switch(prop) {
+            case 'photos':
+                value.forEach(function(photo){
+                    photo.alt_sizes.forEach(function(alt_size){
+                        if (alt_size.width == 75) {
+                            this.set('thumbnail', alt_size.url)
+                        } else {
+                            var key = 'photo_url_'+alt_size.width
+                            photo[key] = alt_size.url
+                        }
+                    }, this)
+                }, this)
+                break;
+            case 'player':
+                if (value.length) {
+                    value.forEach(function(embed){
+                        var key = 'video_embed_'+embed.width
+                        this.set(key, embed.embed_code)
+                    }, this)
+                }
+                break;
+        }
+        this.set(prop,value)
+    },
+    reblogUrl:function() {
+        var id = this.get('id'),
+            reblog_key = this.get('reblog_key')
+        return "http://www.tumblr.com/reblog/%@/%@".fmt(id, reblog_key)
+    }.property()
 });
 
-Tumblr.postController = Ember.ResourceController.create({
-    resourceType: Tumblr.Post,
-    loadAll: function(json) {
-        this._super(json.response.posts)
-    }
+Tumblr.PostView = Em.View.extend({
+    templateName:'tumblr-post-tmpl',
+    classNames:["media"]
 });
 
-// https://github.com/emberjs/ember.js/issues/1378
+Tumblr.TagView = Bootstrap.Label.extend({
+    classNames:['tag'],
+    template:Em.Handlebars.compile('<a {{bindAttr href="view.href"}}>#{{view.content}}</a>'),
+    href:Em.computed(function() {
+        return "http://www.tumblr.com/tagged/%@".fmt(this.get('content'))
+    }).property('content').cacheable()
+})
 
-Tumblr.Router = Ember.Router.extend({
-    enableLogging:true,
-    root: Ember.Route.extend({
-        showHome:Ember.Route.transitionTo('index'),
-        index: Em.Route.extend({
-            route:'/',
-            redirectsTo:'blog.index'
-        }),
-        blog: Em.Route.extend({
-            route:'/blog',
+/* Application */
+Tumblr.app = Em.Application.create({
+    autoinit: false,
+    initialize:function(router) {
+        this._super(router)
+        this.registerHandlebarsHelpers()
+    },
+    Router: Ember.Router.extend({
+        scrollToTop:function() {
+            Em.run.next(function(){ // Hack to push us to the top of the page
+                $('html, body').animate({ scrollTop: 0 }, 0);
+            })
+        },
+        enableLogging:true,
+        root: Ember.Route.extend({
+            showHome:Ember.Route.transitionTo('index'),
+            showPost:Ember.Route.transitionTo('postDetail'),
             index: Em.Route.extend({
-                route: '/',
-                redirectsTo: 'blog.posts'
+                route:'/',
+                enter:function(router) {
+                    router.transitionTo('posts', {page:1});
+                }
             }),
             posts: Em.Route.extend({
                 route:'/page/:page',
+                enter:function(router) {
+                    router.scrollToTop()
+                },
                 connectOutlets:function(router,params) {
                     var page = parseInt(params.page),
                         offset = (page-1)*20
-                    router.api.GetPosts({offset:offset}, function(data){
-                        router.get('tumblrPostsController').set('content', data.posts)
-                        router.get('tumblrPostsController').set('is_loading', false)
-                        router.set('onPage', page)
-                    })
-                    router.get('tumblrBlogController').connectOutlet('tumblrPosts')
-                    router.get('tumblrPostsController').set('is_loading', true)
+                    router.get('pagerController').set('page',page)
+                    router.get('applicationController').connectOutlet('posts')
+                    router.get('postsController').loadQuery({limit:6, offset:offset})
                 }
             }),
             postDetail:Em.Route.extend({
                 route:'/post/:id',
                 connectOutlets:function(router,params) {
-                    router.get('applicationController').connectOutlet('tumblrBlog')
-                    return router.api.GetPosts({id:params.id},function(data){
-                        router.get('tumblrBlogController').set('content', data.blog)
-                        router.get('tumblrBlogController').connectOutlet('tumblrPostDetail', data.posts[0])
-                    })
+                    var post = Tumblr.Post.create(params)
+                    post.findResource()
+                    post.set('is_detail', true)
+                    router.get('applicationController').connectOutlet('postDetail', post)
                 }
             })
         })
-    })
-})
+    }),
 
-/* Outlet Views */
-Tumblr.ApplicationView = Em.View.extend({
-    template: Em.Handlebars.compile('<div class="row">{{outlet}}</div>')
-})
-Tumblr.ApplicationController = Em.Controller.extend()
+    ApplicationView: Em.View.extend({
+        templateName: 'tumblr-blog-tmpl'
+    }),
 
-Tumblr.TumblrBlogView = Em.View.extend({
-    templateName:'tumblr-blog-tmpl'
-})
-Tumblr.TumblrBlogController = Em.Controller.extend({
-    page:1
-})
-Tumblr.TumblrPostsView = Em.View.extend({
-    templateName:'tumblr-posts-tmpl'
-})
-Tumblr.TumblrPostsController = Em.Controller.extend()
-Tumblr.TumblrPostDetailView = Em.View.extend({
-    templateName: 'tumblr-postdetail-tmpl'
-})
-Tumblr.TumblrPostDetailController = Em.Controller.extend()
-
-Tumblr.NavigationView = Em.View.extend({
-    template:Em.Handlebars.compile('<a {{action showPreviousPage}} href="#">Previous</a> | <a {{action showNextPage}} href="#">Next</a>')
-})
-
-/* Core Object Views */
-
-Tumblr.PostView = Em.View.extend({
-    classNames:['post'],
-    templateName:'tumblr-post-tmpl',
-    postBinding:'content'
-})
-
-Tumblr.PostDetailView = Tumblr.PostView.extend({
-    classNames:['detail'],
-    is_detail:true
-})
-
-Tumblr.PostsView = Em.CollectionView.extend({
-    tagName:'div',
-    classNames:['span7', 'offset5'],
-    itemViewClass: Tumblr.PostView.extend({
-        tagName:'div',
-        classNames:[]
-    })
-})
-
-/* Helper Views */
-Tumblr.PhotoView = Em.View.extend({
-    classNames:['photo'],
-    init:function() {
-        this._super()
-        var sizes = Em.ArrayController.create({
-            content:this.get('content.alt_sizes'),
-            sortProperties: ['width']
-        })
-        this.set('sizes',sizes)
-    },
-    unknownProperty: function(keyName) {
-        if (keyName.indexOf('photo-url-') != -1) {
-            var sizes = this.get('sizes'),
-                width = parseInt(keyName.replace('photo-url-','')),
-                size = sizes.findProperty('width', width)
-            if (!size) {
-                size = sizes.get('lastObject')
-            }
-            return size
+    ApplicationController: Em.Controller.extend({
+        init:function() {
+            this._super()
+            var blog = Tumblr.Blog.create()
+            blog.findResource()
+            this.set('content', blog)
         }
-    }
-})
+    }),
 
-Tumblr.PhotoSetView = Em.CollectionView.extend({
-    tagName:'div',
-    classNames:['photoset'],
-    itemViewClass:Tumblr.PhotoView
-})
+    PostDetailController: Em.View.extend(),
 
-Tumblr.VideoView = Em.View.extend({
-    classNames:['video'],
-    init:function() {
-        this._super()
-        /* Convert our sizes into easily accessible properties */
-        this.get('content').forEach(function(size) {
-            this.set('video-embed-'+size.width, Em.Object.create(size))
-        }, this)
-    }
-})
+    PostDetailView: Em.View.extend({
+        templateName:'tumblr-postdetail-tmpl'
+    }),
 
-/* Application */
-Tumblr.Application = Em.Application.extend({
-    autoinit: false,
-    init:function() {
-        this._super()
-        this.ApplicationView = Tumblr.ApplicationView
-        this.ApplicationController = Tumblr.ApplicationController
-        this.TumblrBlogView = Tumblr.TumblrBlogView
-        this.TumblrBlogController = Tumblr.TumblrBlogController
-        this.TumblrPostDetailView = Tumblr.TumblrPostDetailView
-        this.TumblrPostDetailController = Tumblr.TumblrPostDetailController
-        this.TumblrPostsView = Tumblr.TumblrPostsView
-        this.TumblrPostsController = Tumblr.TumblrPostsController
-    },
-    initialize:function(router) {
-        if (!router) {
-            router = Tumblr.Router.create({
-                api: Tumblr.Api.create(this.getWithDefault('apiParams',{}))
-            })
+    PostsView: Em.View.extend({
+        templateName:'tumblr-posts-tmpl'
+    }),
+
+    PostsController: Ember.ResourceController.extend({
+        resourceType: Tumblr.Post,
+        loadAll: function(json) {
+            this._super(json.response.posts)
+        },
+        loadQuery: function(data) {
+            var self = this;
+
+            params = {type:'GET'}
+            params.data = data || {}
+
+            return this._resourceRequest(params)
+                .done(function(json) {
+                    self.clearAll();
+                    self.loadAll(json);
+                });
         }
-        this._super(router)
-        this.registerHandlebarsHelpers()
-    },
+    }),
+
+    PagerController: Em.ArrayController.extend({
+        url:'#/page/%@',
+        page:1,
+        init:function() {
+            this._super()
+            var previous = Ember.Object.create({
+                    controller:this,
+                    title:"&larr; Previous",
+                    previous:true,
+                    hrefBinding:"controller.previousHref",
+                    disabledBinding:"controller.previousDisabled"
+                }),
+                next = Ember.Object.create({
+                    controller:this,
+                    title: "Next &rarr;",
+                    next:true,
+                    hrefBinding:"controller.nextHref",
+                    disabledBinding:"controller.nextDisabled"
+                })
+            this.set('content', Ember.A([previous,next]))
+        },
+        previousHref: Ember.computed(function() {
+            var url = this.get('url'),
+                page = this.get('page')
+            return url.fmt(page-1)
+        }).property('page').cacheable(),
+        nextHref: Ember.computed(function() {
+            var url = this.get('url'),
+                page = this.get('page')
+            return url.fmt(page+1)
+        }).property('page').cacheable(),
+        previousDisabled: Ember.computed(function() {
+            return this.get('page') <= 1
+        }).property('page').cacheable(),
+        nextDisabled: Ember.computed(function() {
+            return false
+        }).property('page').cacheable()
+    }),
+
     post_types:['photo', 'video', 'text', 'quote', 'link', 'chat', 'audio', 'answer'],
+
     registerHandlebarsHelpers:function() {
         /* Render block if the view does not have is_detail set to 'true' */
         Em.Handlebars.registerHelper('preview', function(options) {
-            var is_detail = !Ember.Handlebars.getPath(this, 'view.is_detail', options)
+            var is_detail = !Ember.Handlebars.getPath(this, 'view.controller.is_detail', options)
             return !is_detail ? options.inverse(this) : options.fn(this);
         });
 
         /* Render block if the view has is_detail set to 'true' */
         Em.Handlebars.registerHelper('detail', function(options) {
-            var is_detail = Ember.Handlebars.getPath(this, 'view.is_detail', options)
+            var is_detail = Ember.Handlebars.getPath(this, 'view.controller.is_detail', options)
             return !is_detail ? options.inverse(this) : options.fn(this);
         });
 
@@ -225,3 +236,4 @@ Tumblr.Application = Em.Application.extend({
     }
 })
 
+Tumblr.app.initialize()

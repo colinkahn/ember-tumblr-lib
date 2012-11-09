@@ -21,57 +21,61 @@
 			left:-70px;
 		}
 
-		.post-flag .btn-group .btn {
+		.post-flag .btn-group a.btn {
 			width:14px;
+		}
+
+		.tag {
+			margin-right:1ex;
 		}
 		</style>
 
 		<script type="text/x-handlebars" data-template-name="tumblr-blog-tmpl">
-			<div class="page-header span4" data-spy="affix" data-offset-top="0">
-				<h1><a {{action showHome href=true}}>{{controller.content.title}}</a>
-				<small>{{&controller.content.description}}</small></h1>
+			<div class="row">
+				<div class="page-header span4" data-spy="affix" data-offset-top="0">
+					<h1><a {{action showHome href=true}}>{{controller.content.title}}</a>
+						<small>{{&controller.content.description}}</small></h1>
+				</div>
+				<div class="span7 offset5">
+					{{outlet}}
+				</div>
 			</div>
-		    {{outlet}}
 		</script>
 
 		<script type="text/x-handlebars" data-template-name="tumblr-posts-tmpl">
-			{{#if controller.is_loading}}
-				Loading...
+			{{#if controller.content.length}}
+				{{each controller.content itemViewClass="Tumblr.PostView"}}
+				{{view Bootstrap.Pager contentBinding="Tumblr.app.router.pagerController.content" }}
 			{{else}}
-				{{collection Tumblr.PostsView contentBinding="controller.content"}}
-			    {{view Tumblr.NavigationView contentBinding="controller.page"}}
+			<div style="margin-top:15px;">
+				{{view Bootstrap.ProgressBar isStriped=true isAnimated=true progress=100}}
+			</div>
 			{{/if}}
 		</script>
 
 		<script type="text/x-handlebars" data-template-name="tumblr-postdetail-tmpl">
-			{{#if controller.is_loading}}
-				Loading...
-			{{else}}
-				{{view Tumblr.PostDetailView contentBinding="controller.content"}}
-			{{/if}}
+			<div style="margin-top:15px;">
+				{{#if controller.content.type}}
+					{{view Tumblr.PostView contentBinding="controller.content"}}
+				{{else}}
+					{{view Bootstrap.ProgressBar isStriped=true isAnimated=true progress=100}}
+				{{/if}}
+			</div>
 		</script>
 
 		<script type="text/x-handlebars" data-template-name="tumblr-post-tmpl">
+			{{template "tumblr-post-flag-tmpl"}}
+
 		    {{#text}}
 		        <h3>{{&view.content.title}}</h3>
 		        {{&view.content.body}}
 		    {{/text}}
 
 		    {{#photo}}
-		        {{#preview}}
-		             <a {{action showPost view.content href=true}} class="thumbnail">
-		                {{#view Tumblr.PhotoView contentBinding="view.content.photos.firstObject"}}
-		                	<img {{bindAttr src="view.photo-url-75.url"}}>
-		                {{/view}}
-		            </a>
-		         {{/preview}}
-
-		         {{#detail}}
-		            {{#collection Tumblr.PhotoSetView contentBinding="view.content.photos"}}
-		                <img {{bindAttr src="view.photo-url-500.url"}}>
-		            {{/collection}}
-		            <div class="caption">{{&view.content.caption}}</div>
-		        {{/detail}}
+	            {{#each view.content.photos}}
+					<img {{bindAttr src="this.photo_url_500"}}>
+	            {{/each}}
+	            <div class="caption">{{&view.content.caption}}</div>
 		    {{/photo}}
 
 		    {{#quote}}
@@ -80,70 +84,82 @@
 		    {{/quote}}
 
 		    {{#link}}
-		        <a {{bindAttr href="view.post.url"}}><h3>{{&view.post.title}}</h3></a>
-		        {{&view.post.description}}
+		        <h3><a {{bindAttr href="view.content.url"}}>{{&view.content.title}}</a></h3>
+		        {{&view.content.description}}
 		    {{/link}}
 
 		    {{#chat}}
-		        <h3>{{view.post.title}}</h3>
-		       {{#collection tagName="dl" contentBinding="view.post.dialogue"}}
+		        <h3>{{view.content.title}}</h3>
+		       {{#collection tagName="dl" contentBinding="view.content.dialogue"}}
 		            <dt>{{view.content.name}}</dt>
 		            <dd>{{view.content.phrase}}</dd>
 		        {{/collection}}
 		    {{/chat}}
 
 		    {{#audio}}
-		         {{&view.post.player}}
-		         <dl>
-		             <dt>Caption</dt>
-		                 <dd>{{&view.post.caption}}</dd>
-		             <dt>Plays</dt>
-		                 <dd>{{view.post.plays}}</dd>
-		             <dt>Artist</dt>
-		                 <dd>{{view.post.artist}}</dd>
+		         {{&view.content.player}}
+		         <dl class="dl-horizontal">
+		         	{{#if view.content.caption}}
+		            <dt>Caption</dt>
+		                 <dd>{{&view.content.caption}}</dd>
+		            {{/if}}
+		            {{#if view.content.plays}}
+		            <dt>Plays</dt>
+		                 <dd>{{view.content.plays}}</dd>
+		            {{/if}}
+		            {{#if view.content.artist}}
+		            <dt>Artist</dt>
+		                 <dd>{{view.content.artist}}</dd>
+		            {{/if}}
+		            {{#if view.content.album}}
 		             <dt>Album</dt>
-		                 <dd>{{view.post.album}}</dd>
-		             <dt>Track Name</dt>
-		                 <dd>{{view.post.track_name}}</dd>
-		             <dt>Track Number</dt>
-		                 <dd>{{view.post.track_number}}</dd>
-		             <dt>Year</dt>
-		                 <dd>{{view.post.year}}</dd>
+		                 <dd>{{view.content.album}}</dd>
+		            {{/if}}
+		            {{#if view.content.track_name}}
+		            <dt>Track Name</dt>
+		                 <dd>{{view.content.track_name}}</dd>
+		            {{/if}}
+		            {{#if view.content.track_number}}
+		            <dt>Track Number</dt>
+		                 <dd>{{view.content.track_number}}</dd>
+		            {{/if}}
+		            {{#if view.content.year}}
+		            <dt>Year</dt>
+		                 <dd>{{view.content.year}}</dd>
+		            {{/if}}
 		    {{/audio}}
 
 		    {{#video}}
-		        {{#preview}}
-		             <a {{action showPost view.content href=true}} class="thumbnail">
-		                 <img {{bindAttr src="view.content.thumbnail_url"}}>
-		            </a>
-		        {{/preview}}
-		        {{#detail}}
-		            {{#view Tumblr.VideoView contentBinding="view.content.player"}}
-		                {{&view.video-embed-250.embed_code}}
-		                {{&view.content.caption}}
-		            {{/view}}
-		        {{/detail}}
+	            {{&view.content.video_embed_500}}
+	            {{&view.content.caption}}
 		    {{/video}}
 
-		    {{#answer}}
-		         <h4><a {{bindAttr href="view.post.asking_url"}}>
-		             {{view.post.asking_name}}</a> asks...</h4>
-		         <blockquote>{{view.post.question}}</blockquote>
-		         {{&view.post.answer}}
-		    {{/answer}}
+		    {{template "tumblr-post-utils-tmpl"}}
+		</script>
 
-		    {{#detail}}
-		        {{#collection tagName="ul" contentBinding="view.content.tags"}}
-		            {{&view.content}}
-		        {{/collection}}
-		         <ul>
-		             <li><a {{bindAttr href="view.post.reblogUrl"}}>Reblog</a>
-		             {{#if view.post.source_url}}
-		             <li><a {{bindAttr href="view.post.source_url"}}>
-		                 {{view.post.source_title}}</a>
-		             {{/if}}
-		        </ul>
-		    {{/detail}}
+		<script type="text/x-handlebars" data-template-name="tumblr-post-utils-tmpl">
+			<dl class="dl-horizontal">
+			  {{#if view.content.tags.length}}
+				  <dt>Tags</dt>
+				  	<dd>
+						{{each view.content.tags itemViewClass="Tumblr.TagView"}}
+				  	</dd>
+				{{/if}}
+			  	<dt>Permalink</dt>
+			  		<dd><a {{action showPost view.content href=true}}>{{view.content.date}}</a>
+			</dl>
+			{{#unless view.content.is_detail}}<hr>{{/unless}}
+		</script>
+
+		<script  type="text/x-handlebars" data-template-name="tumblr-post-flag-tmpl">
+			<div class="post-flag">
+				<div class="btn-group btn-group-vertical">
+			  		<a {{action showPost view.content href=true}} class="btn btn-inverse">
+			  			<i class="icon-eye-open icon-white"></i></a>
+			  		<a {{bindAttr href="view.content.reblogUrl"}} class="btn btn-inverse">
+			  			<i class="icon-retweet icon-white"></i></a>
+			  	</div>
+			</div>
 		</script>
 
 	</head>
@@ -153,20 +169,7 @@
 	<script type="text/javascript" src="lib/handlebars-1.0.0.beta.6.js"></script>
 	<script type="text/javascript" src="lib/ember-latest.min.js"></script>
 	<script type="text/javascript" src="lib/ember-rest.js"></script>
+	<script type="text/javascript" src="lib/ember-bootstrap.js"></script>
 	<script type="text/javascript" src="../ember-tumblr-lib.js"></script>
-
-	<script type="text/javascript">
-		/*
-		App = Tumblr.Application.create({
-			apiParams:{
-				api_key:'3Uj5hvL773MVNlhFJC5gyVftNh4Qxci3hqoPkU3nAzp9bFJ8UB',
-				base_hostname:'w0w13z0w13.tumblr.com',
-				postClass:Tumblr.Post
-			}
-		})
-		App.initialize()
-		*/
-	</script>
-		<script type="text/javascript" src="http://twitter.github.com/bootstrap/assets/js/bootstrap-carousel.js"></script>
 	<script type="text/javascript" src="http://twitter.github.com/bootstrap/assets/js/bootstrap-affix.js"></script>
 </html>
